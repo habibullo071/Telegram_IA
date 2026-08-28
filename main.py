@@ -1,4 +1,5 @@
 import os
+import re
 import asyncio
 import sqlite3
 from io import BytesIO
@@ -9,6 +10,7 @@ from aiogram.types import BufferedInputFile
 from google import genai
 from google.genai import types as genai_types
 
+# Token va Kalitlar
 BOT_TOKEN = os.getenv("BOT_TOKEN", "8900959568:AAE1XTEYPD0ms516bMpXMClzUTG_dbHppS0")
 GEMINI_API_KEY = os.getenv("GEMINI_API_KEY", "AQ.Ab8RN6Ksdnf6-IWKCgZIrcmKW68LrRflWddIXeY49_F2Nr5knw")
 ADMIN_ID = 5233653056
@@ -20,6 +22,7 @@ ai_client = genai.Client(api_key=GEMINI_API_KEY)
 user_chats = {}
 DB_PATH = "aura_ai_users.db"
 
+# Ma'lumotlar bazasi funksiyalari
 def init_db():
     conn = sqlite3.connect(DB_PATH)
     cursor = conn.cursor()
@@ -46,8 +49,30 @@ init_db()
 
 SYSTEM_INSTRUCTION = (
     "Siz 'Aura AI' nomli aqlli, xushmuomala va vaqtni tejaydigan Telegram yordamchisiz. "
-    "Foydalanuvchiga har doim aniq, ravon va tushunarli o'zbek tilida javob bering."
+    "Foydalanuvchi qaysi tilda (o'zbek, rus, ingliz yoki turk va h.k.) murojaat qilsa, "
+    "xuddi shu tilda aniq, ravon va tushunarli javob bering."
 )
+
+# Matn qaysi tilda ekanligini aniqlash va mos gTTS til kodini qaytarish
+def detect_gtts_lang(text: str) -> str:
+    # Kirill alifbosi bo'lsa -> Rus tili
+    if re.search(r'[а-яА-ЯёЁ]', text):
+        return 'ru'
+    
+    text_lower = text.lower()
+    
+    # Turkcha maxsus harflar bo'lsa -> Turk tili
+    if re.search(r'[çğıöşüÇĞİÖŞÜ]', text):
+        return 'tr'
+        
+    # Inglizcha kalit so'zlar ko'p bo'lsa -> Ingliz tili
+    english_words = ['the', 'is', 'are', 'you', 'what', 'how', 'this', 'that', 'with', 'have', 'from', 'for']
+    words = re.findall(r'\b\w+\b', text_lower)
+    if any(word in english_words for word in words):
+        return 'en'
+        
+    # Odatiy holatda (lotincha o'zbekcha matnlar uchun) -> Turkcha fonetika eng yaqin talaffuz beradi
+    return 'tr'
 
 @dp.message(CommandStart())
 async def start_cmd(message: types.Message):
@@ -57,7 +82,8 @@ async def start_cmd(message: types.Message):
     welcome_text = (
         f"Assalomu alaykum, <b>{first_name}</b>! 👋\n\n"
         f"Men <b>Aura AI</b> — sizning shaxsiy sun'iy intellekt yordamchingizman. 🤖✨\n\n"
-        f"Menga matn yuborishingiz, 📸 <b>rasm</b> tahlil qildirishingiz yoki 🎙 <b>ovozli xabar</b> yuborishingiz mumkin.\n\n"
+        f"Menga matn yuborishingiz, 📸 <b>rasm</b> tahlil qildirishingiz yoki 🎙 <b>ovozli xabar</b> yuborishingiz mumkin.\n"
+        f"<i>(O'zbek, Rus, Ingliz va Turk tillarini tushunaman va javob bera olaman)</i>\n\n"
         f"💡 <i>Suhbat xotirasini tozalash uchun /clear buyrug'ini yuboring.</i>"
     )
     await message.answer(welcome_text, parse_mode="HTML")
@@ -124,7 +150,7 @@ async def handle_photo(message: types.Message):
         print(f"Rasm tahlili xatosi: {e}")
         await message.answer("⚠️ Rasmni tahlil qilishda xatolik yuz berdi.")
 
-# Ovozli xabarlarni tushunish va OVOZDA javob qaytarish
+# Ovozli xabarlarni tushunish va OVOZDA javob qaytarish (O'zbek, Rus, Ingliz, Turk tillarida)
 @dp.message(F.voice)
 async def handle_voice(message: types.Message):
     add_user(message.from_user.id)
@@ -136,21 +162,22 @@ async def handle_voice(message: types.Message):
         downloaded_file = await bot.download_file(file_info.file_path)
         audio_bytes = downloaded_file.read()
 
-        # 1. Gemini orqali javob matnini olish
+        # 1. Gemini orqali ovozli xabarga javob olish
         response = ai_client.models.generate_content(
             model="gemini-3.6-flash",
             contents=[
                 genai_types.Part.from_bytes(data=audio_bytes, mime_type="audio/ogg"),
-                "Ushbu ovozli xabarga o'zbek tilida qisqa, lirik va tushunarli javob ber."
+                "Ushbu ovozli xabarga foydalanuvchi gapirgan tilda (O'zbek, Rus, Ingliz yoki Turk) qisqa va aniq javob ber."
             ],
             config=genai_types.GenerateContentConfig(system_instruction=SYSTEM_INSTRUCTION)
         )
 
         ai_text = response.text or "Ovozli xabaringiz qabul qilindi."
 
-        # 2. Matnni xotirada ovozga aylantirish (fayl saqlamasdan)
+        # 2. Matn tilini aniqlab gTTS orqali audio yaratish
         try:
-            tts = gTTS(text=ai_text, lang='uz')
+            target_lang = detect_gtts_lang(ai_text)
+            tts = gTTS(text=ai_text, lang=target_lang)
             fp = BytesIO()
             tts.write_to_fp(fp)
             fp.seek(0)
@@ -159,7 +186,6 @@ async def handle_voice(message: types.Message):
             await message.answer_voice(voice=voice_file, caption=ai_text)
         except Exception as tts_err:
             print(f"gTTS ovoz yaratishda xato: {tts_err}")
-            # Agar ovoz o'xshamay qolsa, matnni o'zini yuboradi
             await message.answer(ai_text)
 
     except Exception as e:
