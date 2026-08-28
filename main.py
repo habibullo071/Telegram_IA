@@ -11,10 +11,10 @@ import google.generativeai as genai
 
 # Token va Kalitlar
 BOT_TOKEN = os.getenv("BOT_TOKEN", "8900959568:AAE1XTEYPD0ms516bMpXMClzUTG_dbHppS0")
-GEMINI_API_KEY = os.getenv("GEMINI_API_KEY", "AQ.Ab8RN6JJa7sqz4KjUPb4Z_I1rEKwq3x1s-gXFEaWQO58CxP-Kg")
+GEMINI_API_KEY = os.getenv("GEMINI_API_KEY", "AQ.Ab8RN6KpqsWjaVmRVeXkzQJBUS0veVyTPK6wvk8rOMlogD-4bw")
 ADMIN_ID = 5233653056
 
-# Gemini API sozlashingiz
+# Gemini API sozlamasi
 genai.configure(api_key=GEMINI_API_KEY)
 
 bot = Bot(token=BOT_TOKEN)
@@ -113,7 +113,7 @@ async def handle_ai_chat(message: types.Message):
         await message.answer(response.text)
     except Exception as e:
         print(f"AI Xatoligi: {e}")
-        await message.answer("⚠️ Javob tayyorlashda xatolik yuz berdi. API Key yoki ulanishni tekshiring.")
+        await message.answer("⚠️ Javob tayyorlashda xatolik yuz berdi.")
 
 # 2. RASM -> MATN
 @dp.message(F.photo)
