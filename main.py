@@ -6,8 +6,9 @@ from aiogram.filters import CommandStart, Command
 from google import genai
 from google.genai import types as genai_types
 
-BOT_TOKEN = "8900959568:AAE1XTEYPD0ms516bMpXMClzUTG_dbHppS0"
-GEMINI_API_KEY = "AQ.Ab8RN6Ksdnf6-IWKCgZIrcmKW68LrRflWddIXeY49_F2Nr5knw"
+# Token va API kalitlar (Railway / Environment Variables orqali yoki to'g'ridan-to'g'ri o'qiydi)
+BOT_TOKEN = os.getenv("BOT_TOKEN", "8900959568:AAE1XTEYPD0ms516bMpXMClzUTG_dbHppS0")
+GEMINI_API_KEY = os.getenv("GEMINI_API_KEY", "AQ.Ab8RN6Ksdnf6-IWKCgZIrcmKW68LrRflWddIXeY49_F2Nr5knw")
 ADMIN_ID = 5233653056
 
 bot = Bot(token=BOT_TOKEN)
