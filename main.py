@@ -22,6 +22,7 @@ ai_client = genai.Client(api_key=GEMINI_API_KEY)
 user_chats = {}
 DB_PATH = "aura_ai_users.db"
 
+# Ma'lumotlar bazasi funksiyalari
 def init_db():
     conn = sqlite3.connect(DB_PATH)
     cursor = conn.cursor()
@@ -47,37 +48,31 @@ def get_users_count():
 init_db()
 
 SYSTEM_INSTRUCTION = (
-    "Siz 'Aura AI' nomli aqlli va xushmuomala Telegram yordamchisiz. "
-    "Murojaat qilingan tilda (O'zbek, Rus, Ingliz, Turk va h.k.) vaqtni tejaydigan qisqa, aniq va lirik javob bering. "
-    "Hech qachon 'men audio yubora olmayman' deymang, chunki sizning matningiz avtomatik ravishda ovozga aylantiriladi."
+    "Siz 'Aura AI' nomli aqlli, xushmuomala va vaqtni tejaydigan Telegram yordamchisiz. "
+    "Foydalanuvchi qaysi tilda (o'zbek, rus, ingliz yoki turk va h.k.) murojaat qilsa, "
+    "xuddi shu tilda aniq, ravon va tushunarli javob bering."
 )
 
+# Matn qaysi tilda ekanligini aniqlash va mos gTTS til kodini qaytarish
 def detect_gtts_lang(text: str) -> str:
+    # Kirill alifbosi bo'lsa -> Rus tili
     if re.search(r'[а-яА-ЯёЁ]', text):
         return 'ru'
+    
     text_lower = text.lower()
+    
+    # Turkcha maxsus harflar bo'lsa -> Turk tili
     if re.search(r'[çğıöşüÇĞİÖŞÜ]', text):
         return 'tr'
-    english_words = ['the', 'is', 'are', 'you', 'what', 'how', 'this', 'that', 'with', 'have', 'for']
+        
+    # Inglizcha kalit so'zlar ko'p bo'lsa -> Ingliz tili
+    english_words = ['the', 'is', 'are', 'you', 'what', 'how', 'this', 'that', 'with', 'have', 'from', 'for']
     words = re.findall(r'\b\w+\b', text_lower)
     if any(word in english_words for word in words):
         return 'en'
-    return 'tr'
-
-async def send_voice_response(message: types.Message, ai_text: str):
-    """Matnni gTTS orqali ovozga aylantirib, foydalanuvchiga yuborish funksiyasi"""
-    try:
-        target_lang = detect_gtts_lang(ai_text)
-        tts = gTTS(text=ai_text, lang=target_lang)
-        fp = BytesIO()
-        tts.write_to_fp(fp)
-        fp.seek(0)
         
-        voice_file = BufferedInputFile(fp.read(), filename="response.ogg")
-        await message.answer_voice(voice=voice_file, caption=ai_text)
-    except Exception as tts_err:
-        print(f"gTTS xatosi: {tts_err}")
-        await message.answer(ai_text)
+    # Odatiy holatda (lotincha o'zbekcha matnlar uchun) -> Turkcha fonetika eng yaqin talaffuz beradi
+    return 'tr'
 
 @dp.message(CommandStart())
 async def start_cmd(message: types.Message):
@@ -87,7 +82,8 @@ async def start_cmd(message: types.Message):
     welcome_text = (
         f"Assalomu alaykum, <b>{first_name}</b>! 👋\n\n"
         f"Men <b>Aura AI</b> — sizning shaxsiy sun'iy intellekt yordamchingizman. 🤖✨\n\n"
-        f"Menga matn yuborasizmi yoki ovozli xabarmi — men har doim sizga **OVOZLI XABAR** bilan javob beraman! 🎙\n\n"
+        f"Menga matn yuborishingiz, 📸 <b>rasm</b> tahlil qildirishingiz yoki 🎙 <b>ovozli xabar</b> yuborishingiz mumkin.\n"
+        f"<i>(O'zbek, Rus, Ingliz va Turk tillarini tushunaman va javob bera olaman)</i>\n\n"
         f"💡 <i>Suhbat xotirasini tozalash uchun /clear buyrug'ini yuboring.</i>"
     )
     await message.answer(welcome_text, parse_mode="HTML")
@@ -97,22 +93,22 @@ async def clear_cmd(message: types.Message):
     user_id = message.from_user.id
     if user_id in user_chats:
         del user_chats[user_id]
-        await message.answer("🧹 Suhbat xotirasi tozalandi!")
+        await message.answer("🧹 Suhbat xotirasi tozalandi! Yangi mavzuda savol berishingiz mumkin.")
     else:
-        await message.answer("Suhbat xotirasi bo'sh.")
+        await message.answer("Suhbat xotirasi allaqachon bo'sh.")
 
 @dp.message(Command("stat"))
 async def stat_cmd(message: types.Message):
     if message.from_user.id == ADMIN_ID:
         count = get_users_count()
-        await message.answer(f"📊 Foydalanuvchilar: <b>{count}</b> ta", parse_mode="HTML")
+        await message.answer(f"📊 <b>Bot statistikasi:</b>\n\nJami foydalanuvchilar: <b>{count}</b> ta", parse_mode="HTML")
 
-# MATNLI xabarlar kelganda ham OVOZLI JAVOB qaytarish
+# Matnli xabarlar uchun
 @dp.message(F.text)
 async def handle_ai_chat(message: types.Message):
     add_user(message.from_user.id)
     user_id = message.from_user.id
-    await bot.send_chat_action(chat_id=message.chat.id, action="record_voice")
+    await bot.send_chat_action(chat_id=message.chat.id, action="typing")
 
     if user_id not in user_chats:
         user_chats[user_id] = ai_client.chats.create(
@@ -122,16 +118,16 @@ async def handle_ai_chat(message: types.Message):
 
     try:
         response = user_chats[user_id].send_message(message.text)
-        await send_voice_response(message, response.text)
+        await message.answer(response.text)
     except Exception as e:
         print(f"AI Xatoligi: {e}")
         await message.answer("⚠️ Javob tayyorlashda xatolik yuz berdi.")
 
-# RASM kelganda ham OVOZLI JAVOB qaytarish
+# Rasm fayllarini tahlil qilish
 @dp.message(F.photo)
 async def handle_photo(message: types.Message):
     add_user(message.from_user.id)
-    await bot.send_chat_action(chat_id=message.chat.id, action="record_voice")
+    await bot.send_chat_action(chat_id=message.chat.id, action="typing")
 
     try:
         photo = message.photo[-1]
@@ -139,7 +135,7 @@ async def handle_photo(message: types.Message):
         downloaded_file = await bot.download_file(file_info.file_path)
         image_bytes = downloaded_file.read()
 
-        caption = message.caption or "Ushbu rasmni tahlil qilib ber."
+        caption = message.caption or "Ushbu rasmni batafsil tahlil qilib ber va rasmda nimalar borligini ayt."
 
         response = ai_client.models.generate_content(
             model="gemini-3.6-flash",
@@ -149,12 +145,12 @@ async def handle_photo(message: types.Message):
             ],
             config=genai_types.GenerateContentConfig(system_instruction=SYSTEM_INSTRUCTION)
         )
-        await send_voice_response(message, response.text)
+        await message.answer(response.text)
     except Exception as e:
         print(f"Rasm tahlili xatosi: {e}")
         await message.answer("⚠️ Rasmni tahlil qilishda xatolik yuz berdi.")
 
-# OVOZLI xabarga ham OVOZLI JAVOB qaytarish
+# Ovozli xabarlarni tushunish va OVOZDA javob qaytarish (O'zbek, Rus, Ingliz, Turk tillarida)
 @dp.message(F.voice)
 async def handle_voice(message: types.Message):
     add_user(message.from_user.id)
@@ -166,20 +162,34 @@ async def handle_voice(message: types.Message):
         downloaded_file = await bot.download_file(file_info.file_path)
         audio_bytes = downloaded_file.read()
 
+        # 1. Gemini orqali ovozli xabarga javob olish
         response = ai_client.models.generate_content(
             model="gemini-3.6-flash",
             contents=[
                 genai_types.Part.from_bytes(data=audio_bytes, mime_type="audio/ogg"),
-                "Ushbu ovozli xabarga foydalanuvchi gapirgan tilda qisqa va aniq javob ber."
+                "Ushbu ovozli xabarga foydalanuvchi gapirgan tilda (O'zbek, Rus, Ingliz yoki Turk) qisqa va aniq javob ber."
             ],
             config=genai_types.GenerateContentConfig(system_instruction=SYSTEM_INSTRUCTION)
         )
 
         ai_text = response.text or "Ovozli xabaringiz qabul qilindi."
-        await send_voice_response(message, ai_text)
+
+        # 2. Matn tilini aniqlab gTTS orqali audio yaratish
+        try:
+            target_lang = detect_gtts_lang(ai_text)
+            tts = gTTS(text=ai_text, lang=target_lang)
+            fp = BytesIO()
+            tts.write_to_fp(fp)
+            fp.seek(0)
+            
+            voice_file = BufferedInputFile(fp.read(), filename="response.ogg")
+            await message.answer_voice(voice=voice_file, caption=ai_text)
+        except Exception as tts_err:
+            print(f"gTTS ovoz yaratishda xato: {tts_err}")
+            await message.answer(ai_text)
 
     except Exception as e:
-        print(f"Ovoz tahlili xatosi: {e}")
+        print(f"Ovoz tahlili umumiy xatosi: {e}")
         await message.answer("⚠️ Ovozli xabarni qayta ishlashda xatolik yuz berdi.")
 
 async def main():
