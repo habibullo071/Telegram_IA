@@ -7,18 +7,19 @@ from gtts import gTTS
 from aiogram import Bot, Dispatcher, types, F
 from aiogram.filters import CommandStart, Command
 from aiogram.types import BufferedInputFile
-import google.generativeai as genai
+from google import genai
+from google.genai import types as genai_types
 
 # Token va Kalitlar
 BOT_TOKEN = os.getenv("BOT_TOKEN", "8900959568:AAE1XTEYPD0ms516bMpXMClzUTG_dbHppS0")
 GEMINI_API_KEY = os.getenv("GEMINI_API_KEY", "AQ.Ab8RN6KpqsWjaVmRVeXkzQJBUS0veVyTPK6wvk8rOMlogD-4bw")
 ADMIN_ID = 5233653056
 
-# Gemini API sozlamasi
-genai.configure(api_key=GEMINI_API_KEY)
-
 bot = Bot(token=BOT_TOKEN)
 dp = Dispatcher()
+
+# Yangi Rasmiy Google GenAI Klienti
+ai_client = genai.Client(api_key=GEMINI_API_KEY)
 
 user_chats = {}
 DB_PATH = "aura_ai_users.db"
@@ -51,11 +52,6 @@ SYSTEM_INSTRUCTION = (
     "Siz 'Aura AI' nomli aqlli, xushmuomala va vaqtni tejaydigan Telegram yordamchisiz. "
     "Foydalanuvchi qaysi tilda (o'zbek, rus, ingliz, turk) murojaat qilsa, "
     "xuddi shu tilda aniq, ravon va tushunarli javob bering."
-)
-
-model = genai.GenerativeModel(
-    model_name="gemini-1.5-flash",
-    system_instruction=SYSTEM_INSTRUCTION
 )
 
 def detect_gtts_lang(text: str) -> str:
@@ -106,7 +102,10 @@ async def handle_ai_chat(message: types.Message):
     await bot.send_chat_action(chat_id=message.chat.id, action="typing")
 
     if user_id not in user_chats:
-        user_chats[user_id] = model.start_chat(history=[])
+        user_chats[user_id] = ai_client.chats.create(
+            model="gemini-2.5-flash",
+            config=genai_types.GenerateContentConfig(system_instruction=SYSTEM_INSTRUCTION)
+        )
 
     try:
         response = user_chats[user_id].send_message(message.text)
@@ -129,12 +128,14 @@ async def handle_photo(message: types.Message):
 
         caption = message.caption or "Ushbu rasmni tahlil qilib ber."
 
-        image_part = {
-            "mime_type": "image/jpeg",
-            "data": image_bytes
-        }
-
-        response = model.generate_content([caption, image_part])
+        response = ai_client.models.generate_content(
+            model="gemini-2.5-flash",
+            contents=[
+                genai_types.Part.from_bytes(data=image_bytes, mime_type="image/jpeg"),
+                caption
+            ],
+            config=genai_types.GenerateContentConfig(system_instruction=SYSTEM_INSTRUCTION)
+        )
         await message.answer(response.text)
     except Exception as e:
         print(f"Rasm tahlili xatosi: {e}")
@@ -152,15 +153,14 @@ async def handle_voice(message: types.Message):
         downloaded_file = await bot.download_file(file_info.file_path)
         audio_bytes = downloaded_file.read()
 
-        audio_part = {
-            "mime_type": "audio/ogg",
-            "data": audio_bytes
-        }
-
-        response = model.generate_content([
-            "Ushbu ovozli xabarga foydalanuvchi gapirgan tilda qisqa va aniq javob ber.",
-            audio_part
-        ])
+        response = ai_client.models.generate_content(
+            model="gemini-2.5-flash",
+            contents=[
+                genai_types.Part.from_bytes(data=audio_bytes, mime_type="audio/ogg"),
+                "Ushbu ovozli xabarga foydalanuvchi gapirgan tilda qisqa va aniq javob ber."
+            ],
+            config=genai_types.GenerateContentConfig(system_instruction=SYSTEM_INSTRUCTION)
+        )
 
         ai_text = response.text or "Ovozli xabaringiz qabul qilindi."
 
