@@ -127,7 +127,7 @@ async def handle_photo(message: types.Message):
         caption = message.caption or "Ushbu rasmni tahlil qilib ber."
 
         response = ai_client.models.generate_content(
-            model="gemini-3.6-flash",
+            model="models/gemini-2.0-flash",
             contents=[
                 genai_types.Part.from_bytes(data=image_bytes, mime_type="image/jpeg"),
                 caption
@@ -152,7 +152,7 @@ async def handle_voice(message: types.Message):
         audio_bytes = downloaded_file.read()
 
         response = ai_client.models.generate_content(
-            model="gemini-3.6-flash",
+            model="models/gemini-2.0-flash",
             contents=[
                 genai_types.Part.from_bytes(data=audio_bytes, mime_type="audio/ogg"),
                 "Ushbu ovozli xabarga foydalanuvchi gapirgan tilda qisqa va aniq javob ber."
