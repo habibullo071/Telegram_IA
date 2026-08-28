@@ -17,7 +17,6 @@ ADMIN_ID = 5233653056
 bot = Bot(token=BOT_TOKEN)
 dp = Dispatcher()
 
-# Yangi rasmiy Google GenAI klienti
 ai_client = genai.Client(api_key=GEMINI_API_KEY)
 
 user_chats = {}
@@ -102,7 +101,7 @@ async def handle_ai_chat(message: types.Message):
 
     if user_id not in user_chats:
         user_chats[user_id] = ai_client.chats.create(
-            model="gemini-2.5-flash",
+            model="gemini-3.6-flash",
             config=genai_types.GenerateContentConfig(system_instruction=SYSTEM_INSTRUCTION)
         )
 
@@ -128,7 +127,7 @@ async def handle_photo(message: types.Message):
         caption = message.caption or "Ushbu rasmni tahlil qilib ber."
 
         response = ai_client.models.generate_content(
-            model="gemini-2.5-flash",
+            model="gemini-3.6-flash",
             contents=[
                 genai_types.Part.from_bytes(data=image_bytes, mime_type="image/jpeg"),
                 caption
@@ -153,7 +152,7 @@ async def handle_voice(message: types.Message):
         audio_bytes = downloaded_file.read()
 
         response = ai_client.models.generate_content(
-            model="gemini-2.5-flash",
+            model="gemini-3.6-flash",
             contents=[
                 genai_types.Part.from_bytes(data=audio_bytes, mime_type="audio/ogg"),
                 "Ushbu ovozli xabarga foydalanuvchi gapirgan tilda qisqa va aniq javob ber."
