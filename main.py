@@ -1,10 +1,11 @@
 import os
 import asyncio
 import sqlite3
+from io import BytesIO
 from gtts import gTTS
 from aiogram import Bot, Dispatcher, types, F
 from aiogram.filters import CommandStart, Command
-from aiogram.types import FSInputFile
+from aiogram.types import BufferedInputFile
 from google import genai
 from google.genai import types as genai_types
 
@@ -56,7 +57,7 @@ async def start_cmd(message: types.Message):
     welcome_text = (
         f"Assalomu alaykum, <b>{first_name}</b>! 👋\n\n"
         f"Men <b>Aura AI</b> — sizning shaxsiy sun'iy intellekt yordamchingizman. 🤖✨\n\n"
-        f"Menga matn yuborishingiz, 📸 <b>rasm</b> tahlil qildirishingiz yoki 🎙 <b>ovozli xabar</b> yuborishingiz mumkin. Ovozli xabaringizga men ham ovozda javob qaytaraman!\n\n"
+        f"Menga matn yuborishingiz, 📸 <b>rasm</b> tahlil qildirishingiz yoki 🎙 <b>ovozli xabar</b> yuborishingiz mumkin.\n\n"
         f"💡 <i>Suhbat xotirasini tozalash uchun /clear buyrug'ini yuboring.</i>"
     )
     await message.answer(welcome_text, parse_mode="HTML")
@@ -135,32 +136,34 @@ async def handle_voice(message: types.Message):
         downloaded_file = await bot.download_file(file_info.file_path)
         audio_bytes = downloaded_file.read()
 
+        # 1. Gemini orqali javob matnini olish
         response = ai_client.models.generate_content(
             model="gemini-3.6-flash",
             contents=[
                 genai_types.Part.from_bytes(data=audio_bytes, mime_type="audio/ogg"),
-                "Ushbu ovozli xabarga o'zbek tilida qisqa va tushunarli javob ber."
+                "Ushbu ovozli xabarga o'zbek tilida qisqa, lirik va tushunarli javob ber."
             ],
             config=genai_types.GenerateContentConfig(system_instruction=SYSTEM_INSTRUCTION)
         )
 
-        ai_text = response.text
+        ai_text = response.text or "Ovozli xabaringiz qabul qilindi."
 
-        # Matnni ovozga aylantirish (gTTS)
-        tts = gTTS(text=ai_text, lang='uz')
-        audio_path = f"voice_resp_{message.from_user.id}.mp3"
-        tts.save(audio_path)
-
-        # Ovozli xabar qilib yuborish
-        voice_file = FSInputFile(audio_path)
-        await message.answer_voice(voice=voice_file, caption=ai_text)
-
-        # Faylni tozalash
-        if os.path.exists(audio_path):
-            os.remove(audio_path)
+        # 2. Matnni xotirada ovozga aylantirish (fayl saqlamasdan)
+        try:
+            tts = gTTS(text=ai_text, lang='uz')
+            fp = BytesIO()
+            tts.write_to_fp(fp)
+            fp.seek(0)
+            
+            voice_file = BufferedInputFile(fp.read(), filename="response.ogg")
+            await message.answer_voice(voice=voice_file, caption=ai_text)
+        except Exception as tts_err:
+            print(f"gTTS ovoz yaratishda xato: {tts_err}")
+            # Agar ovoz o'xshamay qolsa, matnni o'zini yuboradi
+            await message.answer(ai_text)
 
     except Exception as e:
-        print(f"Ovoz tahlili xatosi: {e}")
+        print(f"Ovoz tahlili umumiy xatosi: {e}")
         await message.answer("⚠️ Ovozli xabarni qayta ishlashda xatolik yuz berdi.")
 
 async def main():
