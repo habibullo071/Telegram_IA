@@ -101,7 +101,7 @@ async def handle_ai_chat(message: types.Message):
 
     if user_id not in user_chats:
         user_chats[user_id] = ai_client.chats.create(
-            model="gemini-3.6-flash",
+            model="gemini-2.0-flash",
             config=genai_types.GenerateContentConfig(system_instruction=SYSTEM_INSTRUCTION)
         )
 
