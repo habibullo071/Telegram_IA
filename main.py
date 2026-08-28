@@ -11,7 +11,7 @@ import google.generativeai as genai
 
 # Token va Kalitlar
 BOT_TOKEN = os.getenv("BOT_TOKEN", "8900959568:AAE1XTEYPD0ms516bMpXMClzUTG_dbHppS0")
-GEMINI_API_KEY = os.getenv("GEMINI_API_KEY", "AQ.Ab8RN6Ksdnf6-IWKCgZIrcmKW68LrRflWddIXeY49_F2Nr5knw")
+GEMINI_API_KEY = os.getenv("GEMINI_API_KEY", "AQ.Ab8RN6JJa7sqz4KjUPb4Z_I1rEKwq3x1s-gXFEaWQO58CxP-Kg")
 ADMIN_ID = 5233653056
 
 # Gemini API sozlashingiz
