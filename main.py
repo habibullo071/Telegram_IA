@@ -10,15 +10,14 @@ from aiogram.types import BufferedInputFile
 from google import genai
 from google.genai import types as genai_types
 
-# Token va Kalitlar
-BOT_TOKEN = os.getenv("BOT_TOKEN", "8900959568:AAEWrO63fJgLf_cw8TJoWzj6SOeuaZBllLU")
-GEMINI_API_KEY = os.getenv("GEMINI_API_KEY", "AQ.Ab8RN6KpqsWjaVmRVeXkzQJBUS0veVyTPK6wvk8rOMlogD-4bw")
+BOT_TOKEN = os.getenv("BOT_TOKEN")
+GEMINI_API_KEY = os.getenv("GEMINI_API_KEY")
 ADMIN_ID = 5233653056
 
 bot = Bot(token=BOT_TOKEN)
 dp = Dispatcher()
 
-# Yangi Rasmiy Google GenAI Klienti
+# Yangi rasmiy Google GenAI klienti
 ai_client = genai.Client(api_key=GEMINI_API_KEY)
 
 user_chats = {}
